@@ -1,0 +1,37 @@
+version: "3.9"
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 2s
+      retries: 5
+
+  nexgate:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - JWT_SECRET=ChangeMeInProductionUseEnvFile
+      - NEXGATE_CONFIG=config/routes.yml
+    depends_on:
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  mock-service-1:
+    image: python:3.12-alpine
+    command: sh -c "pip install flask && python -c \"from flask import Flask; app=Flask(__name__); @app.route('/api/users/<path:subpath>', defaults={'subpath': ''}); @app.route('/api/users/'); def handle(subpath): return {'service': 'user-svc-1', 'path': subpath}; app.run(host='0.0.0.0', port=9001)\""
+    ports:
+      - "9001:9001"
+
+  mock-service-2:
+    image: python:3.12-alpine
+    command: sh -c "pip install flask && python -c \"from flask import Flask; app=Flask(__name__); @app.route('/api/users/<path:subpath>', defaults={'subpath': ''}); @app.route('/api/users/'); def handle(subpath): return {'service': 'user-svc-2', 'path': subpath}; app.run(host='0.0.0.0', port=9002)\""
+    ports:
+      - "9002:9002"

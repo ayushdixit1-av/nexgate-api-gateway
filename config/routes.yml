@@ -1,0 +1,65 @@
+port: 8080
+
+routes:
+  - id: user-service
+    path: /api/users/**
+    method: ANY
+    auth:
+      - jwt
+    rateLimit: 1000
+    rateLimitDuration: 1m
+    circuitBreaker:
+      failureThreshold: 5
+      successThreshold: 3
+      timeoutMs: 30000
+    upstreams:
+      - host: localhost
+        port: 9001
+        weight: 3
+      - host: localhost
+        port: 9002
+        weight: 2
+
+  - id: order-service
+    path: /api/orders/**
+    method: ANY
+    auth:
+      - jwt
+      - api-key
+    rateLimit: 500
+    rateLimitDuration: 1m
+    circuitBreaker:
+      failureThreshold: 10
+      successThreshold: 5
+      timeoutMs: 60000
+    upstreams:
+      - host: localhost
+        port: 9003
+        weight: 1
+
+  - id: public-api
+    path: /api/public/**
+    method: GET
+    rateLimit: 5000
+    rateLimitDuration: 1m
+    upstreams:
+      - host: localhost
+        port: 9004
+        weight: 1
+
+  - id: health
+    path: /health
+    method: GET
+    upstreams:
+      - host: localhost
+        port: 8080
+
+  - id: webhook
+    path: /webhooks/**
+    method: POST
+    auth:
+      - oauth2
+    upstreams:
+      - host: localhost
+        port: 9005
+        weight: 1
