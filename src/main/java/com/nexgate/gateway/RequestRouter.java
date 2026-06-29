@@ -1,5 +1,6 @@
 package com.nexgate.gateway;
 
+import com.nexgate.admin.MetricsCollector;
 import com.nexgate.circuitbreaker.CircuitBreakerRegistry;
 import com.nexgate.middleware.AuthMiddleware;
 import com.nexgate.model.Route;
@@ -23,6 +24,7 @@ public class RequestRouter {
     private final CircuitBreakerRegistry cbRegistry;
     private final ReverseProxyHandler proxyHandler;
     private final AtomicInteger roundRobinIndex = new AtomicInteger(0);
+    private final MetricsCollector metrics;
 
     public RequestRouter(RouteConfig config, RateLimiter rateLimiter, 
                          AuthMiddleware authMiddleware, CircuitBreakerRegistry cbRegistry) {
@@ -31,6 +33,7 @@ public class RequestRouter {
         this.authMiddleware = authMiddleware;
         this.cbRegistry = cbRegistry;
         this.proxyHandler = new ReverseProxyHandler();
+        this.metrics = MetricsCollector.getInstance();
     }
 
     public void route(ChannelHandlerContext ctx, FullHttpRequest request) {
@@ -41,13 +44,16 @@ public class RequestRouter {
 
         Route matched = matchRoute(path, method);
         if (matched == null) {
+            metrics.recordError("unknown");
             sendJson(ctx, HttpResponseStatus.NOT_FOUND, "{\"error\":\"No route matches " + path + "\"}");
             return;
         }
+        metrics.recordRequest(matched.getId());
 
         if (matched.getAuth() != null && !matched.getAuth().isEmpty()) {
             String authResult = authMiddleware.authenticate(request, matched.getAuth());
             if (authResult != null) {
+                metrics.recordError(matched.getId());
                 sendJson(ctx, HttpResponseStatus.UNAUTHORIZED, "{\"error\":\"" + authResult + "\"}");
                 return;
             }
@@ -58,6 +64,7 @@ public class RequestRouter {
             int maxTokens = matched.getRateLimit();
             long windowMs = parseDuration(matched.getRateLimitDuration());
             if (!rateLimiter.tryAcquire(limitKey, maxTokens, windowMs)) {
+                metrics.recordError(matched.getId());
                 sendJson(ctx, HttpResponseStatus.TOO_MANY_REQUESTS, 
                     "{\"error\":\"Rate limit exceeded\",\"limit\":" + maxTokens + "}");
                 return;
@@ -72,6 +79,7 @@ public class RequestRouter {
 
         com.nexgate.circuitbreaker.CircuitBreaker cb = cbRegistry.getOrCreate(matched.getId(), matched.getCircuitBreaker());
         if (!cb.tryAcquire()) {
+            metrics.recordError(matched.getId());
             sendJson(ctx, HttpResponseStatus.SERVICE_UNAVAILABLE, 
                 "{\"error\":\"Circuit breaker open for " + matched.getId() + "\"}");
             return;

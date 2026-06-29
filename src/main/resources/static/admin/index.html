@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>NexGate Admin</title>
+<style>
+  :root {
+    --bg: #0d1117;
+    --card: #161b22;
+    --border: #30363d;
+    --text: #e6edf3;
+    --muted: #8b949e;
+    --accent: #58a6ff;
+    --green: #3fb950;
+    --yellow: #d29922;
+    --red: #f85149;
+    --orange: #d87705;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, sans-serif;
+    background: var(--bg); color: var(--text); padding: 24px;
+  }
+  .header {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  }
+  .header h1 { font-size: 24px; }
+  .header h1 span { color: var(--accent); }
+  .header .status { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .status-dot {
+    width: 10px; height: 10px; border-radius: 50%; display: inline-block;
+  }
+  .status-dot.up { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .status-dot.down { background: var(--red); box-shadow: 0 0 8px var(--red); }
+  .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 24px; }
+  .card {
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    padding: 20px; transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card .label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+  .card .value { font-size: 28px; font-weight: 600; }
+  .card .value.green { color: var(--green); }
+  .card .value.blue { color: var(--accent); }
+  .card .value.yellow { color: var(--yellow); }
+  .card .value.orange { color: var(--orange); }
+  h2 { font-size: 18px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  table {
+    width: 100%; border-collapse: collapse; background: var(--card);
+    border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+    margin-bottom: 24px;
+  }
+  th, td { padding: 12px 16px; text-align: left; border-bottom: 1px solid var(--border); font-size: 13px; }
+  th { background: #1c2128; color: var(--muted); font-weight: 600; text-transform: uppercase; font-size: 11px; letter-spacing: 0.5px; }
+  tr:hover td { background: #1c2128; }
+  .badge {
+    display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: 500;
+  }
+  .badge.closed { background: #1a3a2a; color: var(--green); }
+  .badge.open { background: #3a1a1a; color: var(--red); }
+  .badge.half_open { background: #3a2a1a; color: var(--yellow); }
+  .badge.jwt { background: #1a2a3a; color: var(--accent); }
+  .badge.api-key { background: #2a1a3a; color: #bc8cff; }
+  .badge.oauth2 { background: #1a3a2a; color: var(--green); }
+  .mono { font-family: 'SF Mono', 'Fira Code', monospace; font-size: 12px; }
+  .empty { color: var(--muted); font-style: italic; padding: 24px; text-align: center; }
+  .refresh-bar {
+    display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+    background: var(--card); border: 1px solid var(--border); border-radius: 8px;
+    margin-bottom: 24px; font-size: 13px; color: var(--muted);
+  }
+  .refresh-bar .spinner {
+    width: 14px; height: 14px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .method { font-weight: 600; font-size: 11px; text-transform: uppercase; }
+  .method.GET { color: var(--green); }
+  .method.POST { color: var(--yellow); }
+  .method.PUT { color: var(--accent); }
+  .method.DELETE { color: var(--red); }
+  .method.ANY { color: var(--muted); }
+  .upstream-list { display: flex; flex-wrap: wrap; gap: 4px; }
+  .upstream-tag {
+    background: #1c2128; border: 1px solid var(--border); border-radius: 4px;
+    padding: 2px 6px; font-size: 11px; font-family: 'SF Mono', monospace;
+  }
+  .nav { display: flex; gap: 8px; }
+  .nav a {
+    color: var(--muted); text-decoration: none; font-size: 14px; padding: 6px 12px;
+    border-radius: 6px; transition: all 0.2s;
+  }
+  .nav a:hover, .nav a.active { color: var(--text); background: #1c2128; }
+  .error-row td { color: var(--red); }
+  .error-row { border-left: 3px solid var(--red); }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1><span>Nex</span>Gate <span style="font-size:14px;color:var(--muted);font-weight:400;">Admin Dashboard</span></h1>
+  <div class="status">
+    <span class="status-dot up" id="statusDot"></span>
+    <span id="statusText">Connected</span>
+    <span style="color:var(--muted);margin:0 8px;">|</span>
+    <span id="uptimeDisplay">0:00:00</span>
+  </div>
+</div>
+
+<div class="refresh-bar">
+  <div class="spinner"></div>
+  <span>Auto-refreshing every 5s</span>
+  <span style="flex:1;"></span>
+  <span id="lastUpdate">Just now</span>
+</div>
+
+<div class="cards" id="metricCards">
+  <div class="card"><div class="label">Total Requests</div><div class="value blue" id="totalRequests">0</div></div>
+  <div class="card"><div class="label">Active Connections</div><div class="value orange" id="activeConnections">0</div></div>
+  <div class="card"><div class="label">Routes Configured</div><div class="value green" id="routesConfigured">0</div></div>
+  <div class="card"><div class="label">Circuit Breakers</div><div class="value yellow" id="circuitBreakers">0</div></div>
+</div>
+
+<h2>Routes</h2>
+<table id="routesTable">
+  <thead>
+    <tr>
+      <th>ID</th>
+      <th>Path</th>
+      <th>Method</th>
+      <th>Auth</th>
+      <th>Rate Limit</th>
+      <th>Upstreams</th>
+      <th>Requests</th>
+      <th>Errors</th>
+      <th>Circuit Breaker</th>
+    </tr>
+  </thead>
+  <tbody id="routesBody">
+    <tr><td colspan="9" class="empty">Loading routes...</td></tr>
+  </tbody>
+</table>
+
+<script>
+const API = '/api/admin';
+let healthData = {};
+
+function fmtUptime(ms) {
+  const s = Math.floor(ms / 1000);
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const sec = s % 60;
+  return `${h}:${String(m).padStart(2,'0')}:${String(sec).padStart(2,'0')}`;
+}
+
+function escape(str) {
+  if (!str) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+async function fetchJSON(url) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+function renderBadge(text, cls) {
+  return `<span class="badge ${cls}">${escape(text)}</span>`;
+}
+
+function authBadges(authList) {
+  if (!authList || authList.length === 0) return '<span style="color:var(--muted);font-size:11px;">none</span>';
+  return authList.map(a => renderBadge(a, a.toLowerCase())).join(' ');
+}
+
+function upstreamTags(upstreams) {
+  if (!upstreams || upstreams.length === 0) return '<span style="color:var(--muted);font-size:11px;">none</span>';
+  return upstreams.map(u => `<span class="upstream-tag">${u.host}:${u.port} (w:${u.weight})</span>`).join('');
+}
+
+async function loadDashboard() {
+  try {
+    const [health, routes, breakers] = await Promise.all([
+      fetchJSON(`${API}/health`),
+      fetchJSON(`${API}/routes`),
+      fetchJSON(`${API}/circuit-breakers`)
+    ]);
+
+    healthData = health;
+
+    // Status
+    const dot = document.getElementById('statusDot');
+    const statusText = document.getElementById('statusText');
+    if (health.status === 'UP') {
+      dot.className = 'status-dot up';
+      statusText.textContent = 'Operational';
+      statusText.style.color = 'var(--green)';
+    } else {
+      dot.className = 'status-dot down';
+      statusText.textContent = 'Degraded';
+      statusText.style.color = 'var(--red)';
+    }
+
+    document.getElementById('uptimeDisplay').textContent = fmtUptime(health.uptimeMs);
+
+    // Metric cards
+    document.getElementById('totalRequests').textContent = health.totalRequests.toLocaleString();
+    document.getElementById('activeConnections').textContent = health.activeConnections;
+    document.getElementById('routesConfigured').textContent = health.routesConfigured;
+    document.getElementById('circuitBreakers').textContent = (breakers.circuitBreakers || []).length;
+
+    // Routes table
+    const tbody = document.getElementById('routesBody');
+    if (!routes.routes || routes.routes.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="9" class="empty">No routes configured</td></tr>';
+    } else {
+      const cbMap = {};
+      if (breakers.circuitBreakers) {
+        breakers.circuitBreakers.forEach(cb => { cbMap[cb.name] = cb; });
+      }
+      tbody.innerHTML = routes.routes.map(r => {
+        const cb = cbMap[r.id] || null;
+        const cbHtml = cb
+          ? `${renderBadge(cb.state.replace('_', ' '), cb.state.toLowerCase())} <span style="color:var(--muted);font-size:11px;">failures: ${cb.failureCount}</span>`
+          : '<span style="color:var(--muted);font-size:11px;">not created</span>';
+        const errorRate = r.requests > 0 ? ((r.errors / r.requests) * 100).toFixed(1) : '0.0';
+        return `<tr>
+          <td class="mono">${escape(r.id)}</td>
+          <td class="mono">${escape(r.path)}</td>
+          <td><span class="method ${r.method}">${escape(r.method)}</span></td>
+          <td>${authBadges(r.auth)}</td>
+          <td style="font-size:12px;">${r.rateLimit > 0 ? `${r.rateLimit}/${escape(r.rateLimitDuration)}` : '<span style="color:var(--muted)">unlimited</span>'}</td>
+          <td><div class="upstream-list">${upstreamTags(r.upstreams)}</div></td>
+          <td style="font-size:14px;font-weight:500;">${r.requests}</td>
+          <td style="font-size:14px;font-weight:500;color:${r.errors > 0 ? 'var(--red)' : 'var(--muted)'};">${r.errors} <span style="font-size:11px;color:var(--muted);">(${errorRate}%)</span></td>
+          <td>${cbHtml}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    document.getElementById('lastUpdate').textContent = new Date().toLocaleTimeString();
+  } catch (e) {
+    console.error('Dashboard load error:', e);
+    const dot = document.getElementById('statusDot');
+    dot.className = 'status-dot down';
+    document.getElementById('statusText').textContent = 'Disconnected';
+    document.getElementById('statusText').style.color = 'var(--red)';
+    document.getElementById('routesBody').innerHTML = '<tr><td colspan="9" class="empty">Failed to load dashboard: connection error</td></tr>';
+  }
+}
+
+loadDashboard();
+setInterval(loadDashboard, 5000);
+</script>
+</body>
+</html>

@@ -1,5 +1,8 @@
 package com.nexgate.gateway;
 
+import com.nexgate.admin.AdminApiHandler;
+import com.nexgate.admin.MetricsCollector;
+import com.nexgate.admin.StaticFileHandler;
 import com.nexgate.circuitbreaker.CircuitBreaker;
 import io.netty.channel.*;
 import io.netty.channel.socket.SocketChannel;
@@ -19,14 +22,40 @@ public class ProxyFrontendHandler extends SimpleChannelInboundHandler<FullHttpRe
     public static final AttributeKey<Long> UPSTREAM_RESPONSE_TIME = AttributeKey.valueOf("upstreamResponseTime");
 
     private final RequestRouter router;
+    private final AdminApiHandler adminApi;
+    private final StaticFileHandler staticFile;
+    private final MetricsCollector metrics;
 
-    public ProxyFrontendHandler(RequestRouter router) {
+    public ProxyFrontendHandler(RequestRouter router, AdminApiHandler adminApi) {
         this.router = router;
+        this.adminApi = adminApi;
+        this.staticFile = new StaticFileHandler("/admin");
+        this.metrics = MetricsCollector.getInstance();
     }
 
     @Override
     protected void channelRead0(ChannelHandlerContext ctx, FullHttpRequest request) {
-        router.route(ctx, request);
+        metrics.incrementActive();
+        String uri = request.uri();
+        if (uri.startsWith("/api/admin/")) {
+            adminApi.handle(ctx, request);
+            metrics.decrementActive();
+        } else if (uri.equals("/admin") || uri.startsWith("/admin/")) {
+            staticFile.handle(ctx, request);
+            metrics.decrementActive();
+        } else {
+            router.route(ctx, request);
+        }
+    }
+
+    @Override
+    public void channelInactive(ChannelHandlerContext ctx) {
+        metrics.decrementActive();
+        Long responseTime = ctx.channel().attr(UPSTREAM_RESPONSE_TIME).get();
+        if (responseTime != null && responseTime < 0) {
+            recordResult(ctx, false);
+        }
+        ctx.fireChannelInactive();
     }
 
     @Override
@@ -34,15 +63,6 @@ public class ProxyFrontendHandler extends SimpleChannelInboundHandler<FullHttpRe
         log.error("Handler error", cause);
         recordResult(ctx, false);
         ctx.close();
-    }
-
-    @Override
-    public void channelInactive(ChannelHandlerContext ctx) {
-        Long responseTime = ctx.channel().attr(UPSTREAM_RESPONSE_TIME).get();
-        if (responseTime != null && responseTime < 0) {
-            recordResult(ctx, false);
-        }
-        ctx.fireChannelInactive();
     }
 
     private void recordResult(ChannelHandlerContext ctx, boolean success) {

@@ -21,7 +21,7 @@ public class NexGateServer {
         CircuitBreakerRegistry cbRegistry = new CircuitBreakerRegistry();
         RequestRouter router = new RequestRouter(config, rateLimiter, authMiddleware, cbRegistry);
 
-        HttpServerBootstrap bootstrap = new HttpServerBootstrap(port, router);
+        HttpServerBootstrap bootstrap = new HttpServerBootstrap(port, router, config, cbRegistry);
         bootstrap.start();
     }
 }

@@ -1,5 +1,8 @@
 package com.nexgate.gateway;
 
+import com.nexgate.admin.AdminApiHandler;
+import com.nexgate.circuitbreaker.CircuitBreakerRegistry;
+import com.nexgate.model.RouteConfig;
 import io.netty.bootstrap.ServerBootstrap;
 import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelInitializer;
@@ -19,10 +22,12 @@ public class HttpServerBootstrap {
     private static final Logger log = LoggerFactory.getLogger(HttpServerBootstrap.class);
     private final int port;
     private final RequestRouter router;
+    private final AdminApiHandler adminApi;
 
-    public HttpServerBootstrap(int port, RequestRouter router) {
+    public HttpServerBootstrap(int port, RequestRouter router, RouteConfig config, CircuitBreakerRegistry cbRegistry) {
         this.port = port;
         this.router = router;
+        this.adminApi = new AdminApiHandler(config, cbRegistry);
     }
 
     public void start() {
@@ -39,7 +44,7 @@ public class HttpServerBootstrap {
                      ch.pipeline().addLast(
                          new HttpServerCodec(),
                          new HttpObjectAggregator(10 * 1024 * 1024),
-                         new ProxyFrontendHandler(router)
+                          new ProxyFrontendHandler(router, adminApi)
                      );
                  }
              })
