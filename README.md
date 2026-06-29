@@ -17,18 +17,18 @@
 
 ```mermaid
 graph TB
-    Client[Client HTTP] --> Gateway[NexGate Gateway :8080]
-    Gateway -->|proxy| US1[User Service 1 :9001]
-    Gateway -->|proxy| US2[User Service 2 :9002]
-    Gateway -->|proxy| OS[Order Service :9003]
-    Gateway -->|proxy| PS[Public API :9004]
-    Gateway -->|proxy| WH[Webhook Handler :9005]
-    Gateway --> RL[(Redis :6379 Rate Limits)]
-    Gateway --> AdminUI[/admin Dashboard]
+    Client["Client HTTP"] --> Gateway["NexGate Gateway :8080"]
+    Gateway -->|proxy| US1["User Service 1 :9001"]
+    Gateway -->|proxy| US2["User Service 2 :9002"]
+    Gateway -->|proxy| OS["Order Service :9003"]
+    Gateway -->|proxy| PS["Public API :9004"]
+    Gateway -->|proxy| WH["Webhook Handler :9005"]
+    Gateway --> RL[("Redis :6379 Rate Limits")]
+    Gateway --> AdminUI["/admin Dashboard"]
 
     subgraph Admin API
-        AdminAPI[/api/admin REST API/] --> MET[Metrics Collector]
-        AdminAPI --> CBREG[Circuit Breaker Registry]
+        AdminAPI["/api/admin REST API"] --> MET["Metrics Collector"]
+        AdminAPI --> CBREG["Circuit Breaker Registry"]
     end
 
     Gateway --- AdminAPI
